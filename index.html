@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arkadiko Vault Guardian</title>
+    <style>
+        :root {
+            --bg-color: #0f0f13;
+            --card-bg: #1a1a24;
+            --primary: #6c5ce7; /* Arkadiko-ish Purple */
+            --accent: #00b894;  /* Success Green */
+            --danger: #ff7675;  /* Alert Red */
+            --text: #ffffff;
+            --text-muted: #b2bec3;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .dashboard {
+            width: 100%;
+            max-width: 600px;
+            padding: 2rem;
+            background: radial-gradient(circle at top right, #2d3436 0%, var(--bg-color) 60%);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 1px; }
+        .tag { background: var(--primary); font-size: 0.8rem; padding: 4px 12px; border-radius: 12px; }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background: var(--card-bg);
+            color: white;
+            outline: none;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: var(--primary);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* METRICS GRID */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #2d2d3a;
+        }
+
+        .card h3 { margin: 0 0 10px 0; color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; }
+        .card .value { font-size: 1.8rem; font-weight: bold; }
+        .unit { font-size: 1rem; color: var(--primary); }
+
+        /* HEALTH BAR */
+        .health-section {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #2d2d3a;
+        }
+
+        .health-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .bar-container {
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 1s ease-in-out, background 0.3s;
+        }
+
+        .liquidation-line {
+            position: absolute;
+            left: 30%; /* Approx 130% ratio mark */
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: red;
+            z-index: 10;
+        }
+
+        .status-text { margin-top: 10px; font-size: 0.9rem; text-align: right; color: var(--text-muted); }
+
+        /* FOOTER */
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <header>
+            <h1>🛡️ Vault Guardian</h1>
+            <span class="tag">BETA</span>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="walletInput" placeholder="Enter Stacks Address (SP...)" value="SP2C2YFP12AJZB4MFTJQ6E6636CDNRQBW6JRFEF54">
+            <button onclick="checkVault()">Check Health</button>
+        </div>
+
+        <div id="results" style="opacity: 0.5; pointer-events: none;">
+            <div class="grid">
+                <div class="card">
+                    <h3>Collateral</h3>
+                    <div class="value"><span id="colVal">0</span> <span class="unit">STX</span></div>
+                </div>
+                <div class="card">
+                    <h3>Minted Debt</h3>
+                    <div class="value"><span id="debtVal">0</span> <span class="unit">USDA</span></div>
+                </div>
+            </div>
+
+            <div class="health-section">
+                <div class="health-header">
+                    <span>Collateralization Ratio</span>
+                    <span id="ratioVal" style="font-weight: bold;">0%</span>
+                </div>
+                
+                <div class="bar-container">
+                    <div class="liquidation-line" title="Liquidation Threshold"></div>
+                    <div class="bar-fill" id="healthBar"></div>
+                </div>
+                <div class="status-text" id="statusText">Waiting for data...</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Powered by Arkadiko Smart Contracts • Built on Stacks
+        </div>
+    </div>
+
+    <script>
+        function checkVault() {
+            const btn = document.querySelector('button');
+            const results = document.getElementById('results');
+            
+            // 1. Simulate Loading State
+            btn.innerText = "Scanning Chain...";
+            results.style.opacity = "0.5";
+            
+            setTimeout(() => {
+                // 2. SIMULATED DATA (In production, use Stacks.js fetch here)
+                // We are generating random numbers to DEMO the UI behavior
+                const randomCollateral = Math.floor(Math.random() * (3000 - 1000) + 1000);
+                const randomDebt = Math.floor(Math.random() * (800 - 200) + 200);
+                const stxPrice = 1.85; // Mock price
+                
+                // 3. Calculate Ratio
+                const collateralValue = randomCollateral * stxPrice;
+                const ratio = (collateralValue / randomDebt) * 100;
+
+                // 4. Update DOM
+                document.getElementById('colVal').innerText = randomCollateral.toLocaleString();
+                document.getElementById('debtVal').innerText = randomDebt.toLocaleString();
+                document.getElementById('ratioVal').innerText = ratio.toFixed(2) + "%";
+
+                // 5. Update Visual Health Bar
+                const bar = document.getElementById('healthBar');
+                const status = document.getElementById('statusText');
+                
+                // Determine Width (capped at 100% for CSS)
+                // We map 0-300% ratio to 0-100% width for display logic
+                let displayWidth = Math.min((ratio / 300) * 100, 100); 
+                bar.style.width = displayWidth + "%";
+
+                // Logic: Danger if below 140%
+                if (ratio < 140) {
+                    bar.style.background = "var(--danger)";
+                    status.innerHTML = "⚠️ <strong>WARNING:</strong> Close to liquidation!";
+                    status.style.color = "var(--danger)";
+                } else {
+                    bar.style.background = "var(--accent)";
+                    status.innerHTML = "✅ Vault is Healthy";
+                    status.style.color = "var(--accent)";
+                }
+
+                // Reset UI state
+                results.style.opacity = "1";
+                results.style.pointerEvents = "auto";
+                btn.innerText = "Check Health";
+
+            }, 800); // 800ms fake network delay
+        }
+    </script>
+
+</body>
+</html>
