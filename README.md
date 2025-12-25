@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Stacks-purple)
 
 ## 🔗 Live Demo
-**[👉 Click here to view the Dashboard](INSERT YOUR LINK HERE)**
+**[👉 Click here to view the Dashboard](https://manofwarstx.github.io/arkadiko-guardian/)**
 
 ---
 
